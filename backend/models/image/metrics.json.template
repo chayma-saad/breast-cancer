@@ -1,0 +1,31 @@
+{
+  "Vision Transformer": {
+    "accuracy": 0.0,
+    "f1_score": 0.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "auc_roc": 0.0,
+    "confusion_matrix": {
+      "true_positive": 0,
+      "true_negative": 0,
+      "false_positive": 0,
+      "false_negative": 0
+    },
+    "description": "Vision Transformer (ViT-B/16) fine-tuned on mammogram dataset"
+  },
+  "Magnification Aware": {
+    "accuracy": 0.0,
+    "f1_score": 0.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "auc_roc": 0.0,
+    "confusion_matrix": {
+      "true_positive": 0,
+      "true_negative": 0,
+      "false_positive": 0,
+      "false_negative": 0
+    },
+    "description": "Magnification-aware model that adapts to different image magnifications"
+  }
+}
+

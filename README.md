@@ -11,13 +11,13 @@ A modern web application for breast cancer diagnosis using machine learning and 
 
 ### 🔬 Clinical Data Analysis (Tabular)
 - Input 30 clinical features from the Wisconsin Breast Cancer Dataset
-- Multiple ML models: GRU-SVM, Linear Regression, Softmax Regression, MLP, Neural Network
+- Multiple ML models: GRU-SVM, SVM RBF, Random Forest, Neural Network L1, MLP, Linear Regression, Softmax Regression
 - SHAP-based feature importance visualization
 - Real-time prediction with confidence scores
 
 ### 🩻 Mammogram Analysis (Image)
 - Drag-and-drop image upload
-- Deep learning vision models: DenseNet, ViT-B, Swin Transformer, EfficientNet
+- Deep learning vision models: Vision Transformer (ViT) and Magnification Aware
 - Ensemble predictions for improved accuracy
 - Grad-CAM heatmap visualization
 
@@ -42,33 +42,126 @@ A modern web application for breast cancer diagnosis using machine learning and 
 
 ### Prerequisites
 - Node.js 18+
-- Python 3.10+
+- Python 3.10+ (tested with Python 3.14)
 - pip
 
-### Frontend Setup
+### Installation
 
-```bash
+#### 1. Install Backend Dependencies
+
+```powershell
+cd backend
+py -m pip install -r requirements.txt
+```
+
+#### 2. Install Frontend Dependencies
+
+```powershell
 cd frontend
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 npm install
+```
+
+**Note for Windows PowerShell**: If you encounter execution policy errors, run:
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+### Running the Application
+
+#### Option 1: Run Both Servers (Recommended)
+
+**Terminal 1 - Backend:**
+```powershell
+cd backend
+py -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+**Terminal 2 - Frontend:**
+```powershell
+cd frontend
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:3000`
+#### Option 2: Run with Background Processes
 
-### Backend Setup
-
-```bash
+```powershell
+# Start backend
 cd backend
-pip install -r requirements.txt
-python main.py
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "py -m uvicorn main:app --host 0.0.0.0 --port 8000"
+
+# Start frontend (in new terminal)
+cd frontend
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+npm run dev
 ```
 
-Or with uvicorn:
-```bash
-uvicorn main:app --reload --port 8000
+### Access the Application
+
+- **Frontend**: `http://localhost:3000` (or the port shown in terminal)
+- **Backend API**: `http://localhost:8000`
+- **API Documentation**: `http://localhost:8000/docs`
+
+### Verify Servers Are Running
+
+**Check if servers are running:**
+```powershell
+# Check backend (port 8000)
+netstat -ano | findstr :8000
+
+# Check frontend (port 3000)
+netstat -ano | findstr :3000
 ```
 
-The API will be available at `http://localhost:8000`
+**Stop servers:**
+```powershell
+# Stop Python processes (backend)
+Get-Process -Name python -ErrorAction SilentlyContinue | Stop-Process -Force
+
+# Stop Node processes (frontend)
+Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+### Model Files
+
+Place your trained models in the following directories:
+
+**Tabular Models** (`backend/models/tabular/`):
+- `gru_svm_modified.pkl` - GRU-SVM model
+- `svm_rbf_optimized.pkl` - SVM RBF model
+- `random_forest.pkl` - Random Forest model
+- `nn_l1.pkl` - Neural Network L1 model
+- `mlp_model.pkl` - MLP model
+- `linear_regression_model.pkl` - Linear Regression model
+- `best_tuned_softmax_model.pkl` - Softmax Regression model
+
+**Image Models** (`backend/models/image/`):
+- `vit6_breast_cancer.pth` - Vision Transformer model
+- `mag_aware.pkl` - Magnification Aware model
+
+**Scaler** (`backend/models/scalers/`):
+- `scaler.pkl` - StandardScaler for tabular data preprocessing
+
+**Optional - Model Metrics** (`backend/models/image/metrics.json`):
+```json
+{
+  "Vision Transformer": {
+    "accuracy": 0.92,
+    "f1_score": 0.91,
+    "precision": 0.93,
+    "recall": 0.90,
+    "auc_roc": 0.95
+  },
+  "Magnification Aware": {
+    "accuracy": 0.88,
+    "f1_score": 0.87,
+    "precision": 0.89,
+    "recall": 0.86,
+    "auc_roc": 0.90
+  }
+}
+```
 
 ### Docker Deployment
 
@@ -156,22 +249,26 @@ curl -X POST "http://localhost:8000/predict/tabular" \
 ## 🧠 Models
 
 ### Tabular Models
-| Model | Accuracy | F1 Score | AUC-ROC |
-|-------|----------|----------|---------|
-| GRU-SVM | 96.7% | 96.2% | 98.9% |
-| MLP | 95.4% | 94.8% | 98.1% |
-| Neural Network | 94.8% | 94.1% | 97.6% |
-| Softmax Regression | 92.4% | 91.2% | 95.8% |
-| Linear Regression | 91.2% | 89.8% | 94.3% |
+| Model | Description |
+|-------|-------------|
+| GRU-SVM | GRU feature extractor + SVM classifier |
+| SVM RBF | Support Vector Machine with RBF kernel |
+| Random Forest | Random Forest ensemble classifier |
+| Neural Network L1 | Neural Network with L1 regularization |
+| MLP | Multi-Layer Perceptron |
+| Linear Regression | Linear Regression classifier |
+| Softmax Regression | Softmax Regression classifier |
+
+**Note**: Model accuracy metrics are displayed in the Dashboard. Add your evaluation results to `backend/models/image/metrics.json` to show real accuracy values.
 
 ### Vision Models
-| Model | Accuracy | F1 Score | AUC-ROC |
-|-------|----------|----------|---------|
-| Ensemble | 95.6% | 95.1% | 98.4% |
-| EfficientNet | 94.1% | 93.5% | 97.5% |
-| DenseNet | 93.8% | 93.1% | 97.2% |
-| ViT-B | 92.6% | 91.8% | 96.4% |
-| Swin Transformer | 91.9% | 90.8% | 95.8% |
+| Model | Description |
+|-------|-------------|
+| Vision Transformer (ViT) | Vision Transformer fine-tuned on mammograms |
+| Magnification Aware | Magnification-aware model for different image scales |
+| Ensemble | Combines predictions from both vision models |
+
+**Note**: Model accuracy metrics are displayed in the Dashboard. Add your evaluation results to `backend/models/image/metrics.json` to show real accuracy values.
 
 ## 🛠️ Technologies
 
@@ -184,10 +281,46 @@ curl -X POST "http://localhost:8000/predict/tabular" \
 
 ### Backend
 - FastAPI for REST API
-- PyTorch for deep learning
+- PyTorch for deep learning (ViT models)
 - scikit-learn for ML models
+- joblib for model persistence
 - ReportLab for PDF generation
 - NumPy & Pandas for data processing
+- PIL/Pillow for image processing
+
+## 🔧 Troubleshooting
+
+### Backend Issues
+
+**Models not loading:**
+- Check that model files exist in `backend/models/` directories
+- Verify model file names match those in `backend/utils/predictions.py`
+- Check backend terminal for loading errors
+- Run `py backend/check_models.py` to verify model loading
+
+**PyTorch model loading errors:**
+- Ensure PyTorch is installed: `py -m pip install torch torchvision`
+- Models are loaded with `weights_only=False` for compatibility
+
+**Port already in use:**
+- Change port in uvicorn command: `--port 8001`
+- Or stop the process using the port: `netstat -ano | findstr :8000`
+
+### Frontend Issues
+
+**npm execution policy error (Windows):**
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+**Port 3000 already in use:**
+- Vite will automatically use the next available port (3001, 3002, etc.)
+- Check terminal output for the actual port
+
+**API connection errors:**
+- Ensure backend is running on port 8000
+- Check CORS settings in `backend/main.py`
+- Verify API URL in frontend code matches backend port
 
 ## ⚠️ Disclaimer
 

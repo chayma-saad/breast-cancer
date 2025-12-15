@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Image as ImageIcon,
@@ -19,6 +19,31 @@ export default function ImagePrediction() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [modelMetrics, setModelMetrics] = useState(null)
+
+  useEffect(() => {
+    // Fetch model metrics from API (handle 500s gracefully)
+    const loadMetrics = async () => {
+      try {
+        const res = await fetch('/api/metrics')
+        if (!res.ok) throw new Error(`Metrics request failed (${res.status})`)
+        const data = await res.json()
+        if (data.image_models) {
+          setModelMetrics(data.image_models)
+          return
+        }
+      } catch {
+        // Fallback if API fails
+      }
+      setModelMetrics({
+        'Vision Transformer': { accuracy: null },
+        'Magnification Aware': { accuracy: null },
+        'EfficientNet': { accuracy: null },
+        'CNN BreaKHis': { accuracy: null }
+      })
+    }
+    loadMetrics()
+  }, [])
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault()
@@ -81,39 +106,48 @@ export default function ImagePrediction() {
         body: formData
       })
       
-      if (!response.ok) throw new Error('Prediction failed')
+      if (!response.ok) {
+        let errorText = 'Unknown error'
+        try {
+          errorText = await response.text()
+          // Try to parse as JSON for better error message
+          try {
+            const errorJson = JSON.parse(errorText)
+            errorText = errorJson.detail || errorText
+          } catch {
+            // Not JSON, use as-is
+          }
+        } catch {
+          errorText = `HTTP ${response.status}: ${response.statusText}`
+        }
+        throw new Error(`Prediction failed: ${errorText}`)
+      }
       
       const data = await response.json()
+      
+      // Ensure we only show real models returned by backend
+      if (data.model_predictions) {
+        const allowedModels = [
+          'Vision Transformer',
+          'Magnification Aware',
+          'EfficientNet',
+          'CNN BreaKHis',
+          'Ensemble'
+        ]
+        data.model_predictions = data.model_predictions.filter(p => 
+          allowedModels.includes(p.model) || p.model === 'Error'
+        )
+      }
+      
       setResult(data)
-    } catch {
-      // Simulate prediction for demo
-      const mockResult = generateMockPrediction()
-      setResult(mockResult)
+      setError(null)
+    } catch (err) {
+      // Show actual error instead of fake predictions
+      setError(err.message || 'Failed to get prediction from backend. Please check that the backend is running and models are loaded.')
+      setResult(null)
+      console.error('Prediction error:', err)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const generateMockPrediction = () => {
-    const isMalignant = Math.random() > 0.4
-    const baseConfidence = Math.random() * 20 + 75
-    
-    const models = [
-      { model: 'DenseNet', prediction: isMalignant ? 'Malignant' : 'Benign', confidence: Math.round(baseConfidence + Math.random() * 5 - 2) },
-      { model: 'ViT-B', prediction: isMalignant ? 'Malignant' : 'Benign', confidence: Math.round(baseConfidence + Math.random() * 6 - 3) },
-      { model: 'Swin Transformer', prediction: Math.random() > 0.3 === isMalignant ? 'Malignant' : 'Benign', confidence: Math.round(baseConfidence - 15 + Math.random() * 10) },
-      { model: 'EfficientNet', prediction: isMalignant ? 'Malignant' : 'Benign', confidence: Math.round(baseConfidence + Math.random() * 4) },
-      { model: 'Ensemble', prediction: isMalignant ? 'Malignant' : 'Benign', confidence: Math.round(baseConfidence + 5 + Math.random() * 3) },
-    ]
-    
-    return {
-      prediction_id: Math.random().toString(36).substr(2, 8),
-      final_prediction: isMalignant ? 'Malignant' : 'Benign',
-      confidence: Math.round(baseConfidence + 3),
-      model_predictions: models,
-      heatmap_base64: null, // Would contain actual Grad-CAM heatmap
-      explanation: 'Highlighted red regions indicate areas most correlated with malignancy. The ensemble model combines predictions from all vision models for improved accuracy.',
-      timestamp: new Date().toISOString()
     }
   }
 
@@ -277,12 +311,34 @@ export default function ImagePrediction() {
             </h3>
             <div className="space-y-3">
               {[
-                { name: 'DenseNet-121', desc: 'Dense convolutional network', acc: '93.8%' },
-                { name: 'ViT-B/16', desc: 'Vision Transformer', acc: '92.6%' },
-                { name: 'Swin Transformer', desc: 'Shifted window attention', acc: '91.9%' },
-                { name: 'EfficientNet-B4', desc: 'Compound scaling', acc: '94.1%' },
-                { name: 'Ensemble', desc: 'Weighted voting', acc: '95.6%' },
-              ].map((model) => (
+                { 
+                  name: 'Vision Transformer (ViT)', 
+                  desc: 'Vision Transformer fine-tuned on mammograms',
+                  key: 'Vision Transformer'
+                },
+                { 
+                  name: 'Magnification Aware', 
+                  desc: 'Magnification-aware model for different image scales',
+                  key: 'Magnification Aware'
+                },
+                { 
+                  name: 'EfficientNet', 
+                  desc: 'EfficientNet variant tailored for mammogram classification',
+                  key: 'EfficientNet'
+                },
+                { 
+                  name: 'CNN BreaKHis', 
+                  desc: 'CNN model trained on BreaKHis dataset',
+                  key: 'CNN BreaKHis'
+                },
+              ].map((model) => {
+                const metrics = modelMetrics?.[model.key]
+                const accuracy = metrics?.accuracy
+                const accDisplay = accuracy !== null && accuracy !== undefined
+                  ? `${(accuracy < 1 ? accuracy * 100 : accuracy).toFixed(1)}%`
+                  : 'N/A'
+                
+                return (
                 <div
                   key={model.name}
                   className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl"
@@ -293,9 +349,10 @@ export default function ImagePrediction() {
                     </p>
                     <p className="text-xs text-slate-500">{model.desc}</p>
                   </div>
-                  <span className="text-sm font-mono text-emerald-500">{model.acc}</span>
+                  <span className="text-sm font-mono text-emerald-500">{accDisplay}</span>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </div>
@@ -458,13 +515,15 @@ export default function ImagePrediction() {
                               <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
                                 pred.prediction === 'Malignant'
                                   ? 'badge-malignant'
-                                  : 'badge-benign'
+                                  : pred.prediction === 'Benign'
+                                    ? 'badge-benign'
+                                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
                               }`}>
-                                {pred.prediction}
+                                {pred.prediction || 'Error'}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-300">
-                              {pred.confidence}%
+                              {pred.confidence !== undefined ? `${pred.confidence}%` : 'N/A'}
                             </td>
                           </tr>
                         ))}
@@ -472,6 +531,59 @@ export default function ImagePrediction() {
                     </table>
                   </div>
                 </div>
+
+                {/* Trust & Safety */}
+                {result.trust_report && (
+                  <div className="glass-card rounded-2xl p-6 border border-emerald-200 dark:border-emerald-700">
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-3">
+                      AI Trust & Safety
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/30">
+                        <p className="text-sm text-slate-500">Trust Score</p>
+                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-300">
+                          {(result.trust_report.trust_analysis?.trust_score ?? 0).toFixed(2)}
+                          <span className="text-sm ml-2 text-slate-500">
+                            {result.trust_report.trust_analysis?.trust_level || ''}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/30">
+                        <p className="text-sm text-slate-500">Model Agreement</p>
+                        <p className="text-xl font-semibold text-blue-600 dark:text-blue-300">
+                          {((result.trust_report.agreement_analysis?.agreement_ratio ?? 0) * 100).toFixed(0)}%
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {result.trust_report.agreement_analysis?.recommendation}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-sm text-slate-700 dark:text-slate-300">
+                      <p className="font-semibold mb-1">Self-Critique</p>
+                      <p>{result.trust_report.self_critique?.critique_message || 'No additional notes.'}</p>
+                    </div>
+                    <div className="mt-3">
+                      <p className="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-1">Safety Alerts</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(result.trust_report.safety_alerts || []).map((alert, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                          >
+                            {alert}
+                          </span>
+                        ))}
+                        {(result.trust_report.safety_alerts || []).length === 0 && (
+                          <span className="text-xs text-slate-500">No alerts</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 text-sm text-slate-700 dark:text-slate-300">
+                      <p className="font-semibold mb-1">Recommendation</p>
+                      <p>{result.trust_report.recommendation || 'No recommendation available.'}</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Download Report Button */}
                 <motion.button

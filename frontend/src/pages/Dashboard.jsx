@@ -61,54 +61,54 @@ const tabularModels = {
     auc_roc: 96.8,
     confusion_matrix: { tp: 185, tn: 348, fp: 16, fn: 20 },
     description: 'Neural Network with L1 regularization'
+  },
+  'MLP': {
+    accuracy: 95.5,
+    f1_score: 94.9,
+    precision: 94.5,
+    recall: 95.3,
+    auc_roc: 98.2,
+    confusion_matrix: { tp: 191, tn: 354, fp: 10, fn: 14 },
+    description: 'Multi-layer Perceptron with optimized architecture'
+  },
+  'Linear Regression': {
+    accuracy: 91.2,
+    f1_score: 89.8,
+    precision: 89.1,
+    recall: 90.5,
+    auc_roc: 94.3,
+    confusion_matrix: { tp: 181, tn: 338, fp: 26, fn: 24 },
+    description: 'Logistic Regression with L2 regularization'
+  },
+  'Softmax Regression': {
+    accuracy: 92.4,
+    f1_score: 91.2,
+    precision: 91.8,
+    recall: 90.6,
+    auc_roc: 95.8,
+    confusion_matrix: { tp: 184, tn: 342, fp: 22, fn: 21 },
+    description: 'Tuned Softmax Regression classifier'
   }
 }
 
 const imageModels = {
-  'DenseNet': {
-    accuracy: 93.8,
-    f1_score: 93.1,
-    precision: 92.8,
-    recall: 93.4,
-    auc_roc: 97.2,
-    confusion_matrix: { tp: 234, tn: 421, fp: 18, fn: 27 },
-    description: 'DenseNet-121 fine-tuned on mammograms'
+  'Vision Transformer': {
+    accuracy: 94.8,
+    f1_score: 94.2,
+    precision: 93.8,
+    recall: 94.6,
+    auc_roc: 97.8,
+    confusion_matrix: { tp: 237, tn: 424, fp: 15, fn: 24 },
+    description: 'Vision Transformer (ViT-B/16) fine-tuned on mammogram dataset'
   },
-  'ViT-B': {
-    accuracy: 92.6,
-    f1_score: 91.8,
-    precision: 91.2,
-    recall: 92.4,
-    auc_roc: 96.4,
-    confusion_matrix: { tp: 230, tn: 417, fp: 22, fn: 31 },
-    description: 'Vision Transformer Base (16x16 patches)'
-  },
-  'Swin Transformer': {
-    accuracy: 91.9,
-    f1_score: 90.8,
-    precision: 90.2,
-    recall: 91.4,
-    auc_roc: 95.8,
-    confusion_matrix: { tp: 227, tn: 416, fp: 23, fn: 34 },
-    description: 'Shifted window attention mechanism'
-  },
-  'EfficientNet': {
-    accuracy: 94.1,
-    f1_score: 93.5,
-    precision: 93.1,
-    recall: 93.9,
-    auc_roc: 97.5,
-    confusion_matrix: { tp: 236, tn: 422, fp: 17, fn: 25 },
-    description: 'EfficientNet-B4 with compound scaling'
-  },
-  'Ensemble': {
+  'Magnification Aware': {
     accuracy: 95.6,
     f1_score: 95.1,
     precision: 94.8,
     recall: 95.4,
-    auc_roc: 98.4,
-    confusion_matrix: { tp: 241, tn: 428, fp: 11, fn: 20 },
-    description: 'Weighted ensemble of all vision models'
+    auc_roc: 98.2,
+    confusion_matrix: { tp: 240, tn: 427, fp: 12, fn: 21 },
+    description: 'Magnification-aware model that adapts to different image magnifications'
   }
 }
 
@@ -142,34 +142,51 @@ export default function Dashboard() {
       if (response.ok) {
         const data = await response.json()
         setMetrics(data)
+      } else {
+        // API failed, set empty metrics (will show N/A)
+        setMetrics({ tabular_models: {}, image_models: {} })
       }
     } catch {
-      // Use mock data
-      setMetrics({ tabular: tabularModels, image: imageModels })
+      // API error, set empty metrics (will show N/A instead of fake data)
+      setMetrics({ tabular_models: {}, image_models: {} })
     }
   }
 
-  const currentModels = activeTab === 'tabular' ? tabularModels : imageModels
+  // Use API metrics if available, otherwise use empty (will show N/A)
+  const currentModels = metrics 
+    ? (activeTab === 'tabular' ? (metrics.tabular_models || {}) : (metrics.image_models || {}))
+    : (activeTab === 'tabular' ? {} : {})
 
   // Prepare comparison chart data
-  const comparisonData = Object.entries(currentModels).map(([name, data]) => ({
-    name: name.length > 12 ? name.slice(0, 12) + '...' : name,
-    fullName: name,
-    accuracy: data.accuracy,
-    f1_score: data.f1_score,
-    auc_roc: data.auc_roc
-  }))
+  const comparisonData = Object.entries(currentModels)
+    .filter(([name, data]) => data.accuracy !== null && data.accuracy !== undefined)
+    .map(([name, data]) => ({
+      name: name.length > 12 ? name.slice(0, 12) + '...' : name,
+      fullName: name,
+      accuracy: (data.accuracy < 1 ? data.accuracy * 100 : data.accuracy),
+      f1_score: (data.f1_score < 1 ? data.f1_score * 100 : data.f1_score),
+      auc_roc: (data.auc_roc < 1 ? data.auc_roc * 100 : data.auc_roc)
+    }))
 
   // Prepare ROC curve data for selected model or all models
-  const rocData = selectedModel
-    ? generateROCData(currentModels[selectedModel].auc_roc)
+  const rocData = selectedModel && currentModels[selectedModel]?.auc_roc !== null && currentModels[selectedModel]?.auc_roc !== undefined
+    ? (() => {
+        const auc = currentModels[selectedModel].auc_roc;
+        return generateROCData(auc < 1 ? auc : auc / 100);
+      })()
     : null
 
-  const allROCData = Object.entries(currentModels).map(([name, data], idx) => ({
-    name,
-    data: generateROCData(data.auc_roc),
-    color: COLORS[idx % COLORS.length]
-  }))
+  const allROCData = Object.entries(currentModels)
+    .filter(([name, data]) => data.auc_roc !== null && data.auc_roc !== undefined)
+    .map(([name, data], idx) => {
+      const auc = data.auc_roc;
+      const aucValue = auc < 1 ? auc : auc / 100;
+      return {
+        name,
+        data: generateROCData(aucValue),
+        color: COLORS[idx % COLORS.length]
+      };
+    })
 
   return (
     <motion.div
@@ -219,9 +236,48 @@ export default function Dashboard() {
       {/* Overview Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Best Accuracy', value: `${Math.max(...Object.values(currentModels).map(m => m.accuracy))}%`, icon: Target, color: 'from-pink-500 to-rose-500' },
-          { label: 'Best F1 Score', value: `${Math.max(...Object.values(currentModels).map(m => m.f1_score))}%`, icon: Activity, color: 'from-purple-500 to-violet-500' },
-          { label: 'Best AUC-ROC', value: `${Math.max(...Object.values(currentModels).map(m => m.auc_roc))}%`, icon: TrendingUp, color: 'from-blue-500 to-cyan-500' },
+          { 
+            label: 'Best Accuracy', 
+            value: (() => {
+              const accuracies = Object.values(currentModels)
+                .map(m => m.accuracy)
+                .filter(acc => acc !== null && acc !== undefined)
+                .map(acc => acc < 1 ? acc * 100 : acc);
+              return accuracies.length > 0 
+                ? `${Math.max(...accuracies).toFixed(1)}%`
+                : 'N/A';
+            })(), 
+            icon: Target, 
+            color: 'from-pink-500 to-rose-500' 
+          },
+          { 
+            label: 'Best F1 Score', 
+            value: (() => {
+              const f1s = Object.values(currentModels)
+                .map(m => m.f1_score)
+                .filter(f1 => f1 !== null && f1 !== undefined)
+                .map(f1 => f1 < 1 ? f1 * 100 : f1);
+              return f1s.length > 0 
+                ? `${Math.max(...f1s).toFixed(1)}%`
+                : 'N/A';
+            })(), 
+            icon: Activity, 
+            color: 'from-purple-500 to-violet-500' 
+          },
+          { 
+            label: 'Best AUC-ROC', 
+            value: (() => {
+              const aucs = Object.values(currentModels)
+                .map(m => m.auc_roc)
+                .filter(auc => auc !== null && auc !== undefined)
+                .map(auc => auc < 1 ? auc * 100 : auc);
+              return aucs.length > 0 
+                ? `${Math.max(...aucs).toFixed(1)}%`
+                : 'N/A';
+            })(), 
+            icon: TrendingUp, 
+            color: 'from-blue-500 to-cyan-500' 
+          },
           { label: 'Total Models', value: Object.keys(currentModels).length, icon: Layers, color: 'from-emerald-500 to-teal-500' }
         ].map((stat, idx) => (
           <motion.div
@@ -358,19 +414,35 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-xs text-slate-500">Accuracy</p>
-                <p className="text-lg font-bold text-pink-500">{data.accuracy}%</p>
+                <p className="text-lg font-bold text-pink-500">
+                  {data.accuracy !== null && data.accuracy !== undefined 
+                    ? `${((data.accuracy < 1 ? data.accuracy * 100 : data.accuracy)).toFixed(1)}%`
+                    : 'N/A'}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">F1 Score</p>
-                <p className="text-lg font-bold text-purple-500">{data.f1_score}%</p>
+                <p className="text-lg font-bold text-purple-500">
+                  {data.f1_score !== null && data.f1_score !== undefined
+                    ? `${((data.f1_score < 1 ? data.f1_score * 100 : data.f1_score)).toFixed(1)}%`
+                    : 'N/A'}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">Precision</p>
-                <p className="text-lg font-bold text-blue-500">{data.precision}%</p>
+                <p className="text-lg font-bold text-blue-500">
+                  {data.precision !== null && data.precision !== undefined
+                    ? `${((data.precision < 1 ? data.precision * 100 : data.precision)).toFixed(1)}%`
+                    : 'N/A'}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">Recall</p>
-                <p className="text-lg font-bold text-cyan-500">{data.recall}%</p>
+                <p className="text-lg font-bold text-cyan-500">
+                  {data.recall !== null && data.recall !== undefined
+                    ? `${((data.recall < 1 ? data.recall * 100 : data.recall)).toFixed(1)}%`
+                    : 'N/A'}
+                </p>
               </div>
             </div>
 
@@ -381,16 +453,16 @@ export default function Dashboard() {
               </p>
               <div className="grid grid-cols-2 gap-1 text-center text-xs">
                 <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded text-emerald-700 dark:text-emerald-300">
-                  TP: {data.confusion_matrix.tp}
+                  TP: {data.confusion_matrix?.tp ?? 'N/A'}
                 </div>
                 <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded text-red-700 dark:text-red-300">
-                  FP: {data.confusion_matrix.fp}
+                  FP: {data.confusion_matrix?.fp ?? 'N/A'}
                 </div>
                 <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded text-red-700 dark:text-red-300">
-                  FN: {data.confusion_matrix.fn}
+                  FN: {data.confusion_matrix?.fn ?? 'N/A'}
                 </div>
                 <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded text-emerald-700 dark:text-emerald-300">
-                  TN: {data.confusion_matrix.tn}
+                  TN: {data.confusion_matrix?.tn ?? 'N/A'}
                 </div>
               </div>
             </div>

@@ -7,6 +7,7 @@ import {
   BarChart3, 
   Book,
   Heart,
+  MessageCircle,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react'
@@ -16,6 +17,7 @@ const navItems = [
   { path: '/tabular', icon: FileSpreadsheet, label: 'Clinical Data', description: 'Tabular prediction' },
   { path: '/image', icon: Image, label: 'Mammogram', description: 'Image analysis' },
   { path: '/dashboard', icon: BarChart3, label: 'Performance', description: 'Model metrics' },
+  { path: '/assistant', icon: MessageCircle, label: 'AI Companion', description: 'Trust-aware chat' },
   { path: '/glossary', icon: Book, label: 'Glossary', description: 'Medical terms' },
 ]
 

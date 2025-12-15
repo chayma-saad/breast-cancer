@@ -7,6 +7,7 @@ import TabularPrediction from './pages/TabularPrediction'
 import ImagePrediction from './pages/ImagePrediction'
 import Dashboard from './pages/Dashboard'
 import Glossary from './pages/Glossary'
+import ClinicalCompanion from './pages/ClinicalCompanion'
 
 function App() {
   const [darkMode, setDarkMode] = useState(false)
@@ -45,6 +46,7 @@ function App() {
                 <Route path="/image" element={<ImagePrediction />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/glossary" element={<Glossary />} />
+                <Route path="/assistant" element={<ClinicalCompanion />} />
               </Routes>
             </main>
           </div>

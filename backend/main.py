@@ -19,6 +19,8 @@ import base64
 from utils.predictions import TabularPredictor, ImagePredictor
 from utils.report_generator import generate_pdf_report
 from utils.metrics import get_model_metrics
+from trust_safety.trust_center import AITrustSafetyCenter, ModelPrediction
+from chatbot import router as chatbot_router
 
 app = FastAPI(
     title="Breast Cancer Diagnosis API",
@@ -38,9 +40,13 @@ app.add_middleware(
 # Initialize predictors
 tabular_predictor = TabularPredictor()
 image_predictor = ImagePredictor()
+trust_center = AITrustSafetyCenter()
 
 # Store prediction history
 prediction_history = []
+
+# Include chatbot routes
+app.include_router(chatbot_router, prefix="/chatbot", tags=["chatbot"])
 
 
 class TabularInput(BaseModel):
@@ -84,6 +90,7 @@ class PredictionResponse(BaseModel):
     confidence: float
     model_predictions: List[Dict]
     feature_importance: Optional[Dict] = None
+    trust_report: Optional[Dict] = None
     timestamp: str
 
 
@@ -95,6 +102,7 @@ class ImagePredictionResponse(BaseModel):
     model_predictions: List[Dict]
     heatmap_base64: Optional[str] = None
     explanation: str
+    trust_report: Optional[Dict] = None
     timestamp: str
 
 
@@ -135,6 +143,7 @@ async def predict_tabular(data: TabularInput):
         
         # Get predictions from all models
         predictions = tabular_predictor.predict(features)
+        trust_report = None
         
         # Generate prediction ID
         prediction_id = str(uuid.uuid4())[:8]
@@ -168,6 +177,21 @@ async def predict_tabular(data: TabularInput):
             'concave_points_worst', 'symmetry_worst', 'fractal_dimension_worst'
         ]
         feature_importance = tabular_predictor.get_feature_importance(features, feature_names)
+
+        # Trust & Safety analysis
+        try:
+            trust_preds = [
+                ModelPrediction(
+                    model_name=p['model'],
+                    prediction=p['prediction'].lower(),
+                    confidence=float(p.get('confidence', 0)) / 100.0
+                )
+                for p in valid_predictions
+            ]
+            if trust_preds:
+                trust_report = trust_center.complete_analysis(trust_preds)
+        except Exception as te:
+            print(f"[WARN] Trust analysis (tabular) failed: {te}")
         
         response = {
             "prediction_id": prediction_id,
@@ -175,6 +199,7 @@ async def predict_tabular(data: TabularInput):
             "confidence": round(avg_confidence, 2),  # Already in percentage (0-100)
             "model_predictions": predictions,
             "feature_importance": feature_importance,
+            "trust_report": trust_report,
             "timestamp": timestamp
         }
         
@@ -187,14 +212,18 @@ async def predict_tabular(data: TabularInput):
         return response
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_detail = str(e)
+        print(f"[ERROR] Image prediction failed: {error_detail}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Prediction error: {error_detail}")
 
 
 @app.post("/predict/image", response_model=ImagePredictionResponse)
 async def predict_image(file: UploadFile = File(...)):
     """
     Predict breast cancer from mammogram image
-    Uses multiple vision models: DenseNet, ViT-B, Swin Transformer, EfficientNet, Ensemble
+    Uses Vision Transformer (ViT) and Magnification Aware models
     """
     try:
         # Read image
@@ -202,21 +231,47 @@ async def predict_image(file: UploadFile = File(...)):
         
         # Get predictions from all vision models
         predictions, heatmap_base64 = image_predictor.predict(contents)
+        trust_report = None
         
         # Generate prediction ID
         prediction_id = str(uuid.uuid4())[:8]
         timestamp = datetime.now().isoformat()
         
-        # Calculate ensemble prediction
-        malignant_votes = sum(1 for p in predictions if p['prediction'] == 'Malignant')
-        final_prediction = 'Malignant' if malignant_votes > len(predictions) / 2 else 'Benign'
+        # Filter out errors and only use valid predictions
+        valid_predictions = [p for p in predictions if p['prediction'] != 'Error' and p.get('confidence', 0) > 0]
         
-        # Get ensemble confidence
-        ensemble_pred = next((p for p in predictions if p['model'] == 'Ensemble'), None)
-        confidence = ensemble_pred['confidence'] if ensemble_pred else np.mean([p['confidence'] for p in predictions])
+        if not valid_predictions:
+            final_prediction = 'Error'
+            confidence = 0.0
+        else:
+            # Calculate ensemble prediction from valid models only
+            malignant_votes = sum(1 for p in valid_predictions if p['prediction'] == 'Malignant')
+            final_prediction = 'Malignant' if malignant_votes > len(valid_predictions) / 2 else 'Benign'
+            
+            # Get ensemble confidence (prefer Ensemble model, otherwise average)
+            ensemble_pred = next((p for p in valid_predictions if p['model'] == 'Ensemble'), None)
+            if ensemble_pred:
+                confidence = ensemble_pred['confidence']
+            else:
+                confidence = np.mean([p['confidence'] for p in valid_predictions])
+
+            # Trust & Safety analysis (image)
+            try:
+                trust_preds = [
+                    ModelPrediction(
+                        model_name=p['model'],
+                        prediction=p['prediction'].lower(),
+                        confidence=float(p.get('confidence', 0)) / 100.0
+                    )
+                    for p in valid_predictions
+                ]
+                if trust_preds:
+                    trust_report = trust_center.complete_analysis(trust_preds)
+            except Exception as te:
+                print(f"[WARN] Trust analysis (image) failed: {te}")
         
         explanation = "Highlighted red regions indicate areas most correlated with malignancy. " \
-                     "The ensemble model combines predictions from all vision models for improved accuracy."
+                     "The ensemble model combines predictions from Vision Transformer and Magnification Aware models for improved accuracy."
         
         response = {
             "prediction_id": prediction_id,
@@ -225,6 +280,7 @@ async def predict_image(file: UploadFile = File(...)):
             "model_predictions": predictions,
             "heatmap_base64": heatmap_base64,
             "explanation": explanation,
+            "trust_report": trust_report,
             "timestamp": timestamp
         }
         
@@ -237,7 +293,11 @@ async def predict_image(file: UploadFile = File(...)):
         return response
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_detail = str(e)
+        print(f"[ERROR] Image prediction failed: {error_detail}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Prediction error: {error_detail}")
 
 
 @app.get("/metrics")
@@ -249,6 +309,25 @@ async def get_metrics():
     try:
         metrics = get_model_metrics()
         return metrics
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/models/status")
+async def get_models_status():
+    """
+    Get status of which models are currently loaded
+    """
+    try:
+        tabular_loaded = list(tabular_predictor.models.keys()) if hasattr(tabular_predictor, 'models') else []
+        image_loaded = list(image_predictor.models.keys()) if hasattr(image_predictor, 'models') else []
+        
+        return {
+            "tabular_models": tabular_loaded,
+            "image_models": image_loaded,
+            "tabular_count": len(tabular_loaded),
+            "image_count": len(image_loaded)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
