@@ -1,0 +1,14 @@
+# Lightweight dependencies for cloud deployment (Render free tier, 512 MB RAM).
+# Versions match the ones used to train the saved models (scikit-learn 1.6.1, NumPy 2.x).
+# TensorFlow/PyTorch are not needed: image predictions run in demo mode,
+# and GRU-SVM is skipped when no GRU feature extractor can be loaded.
+fastapi==0.115.6
+uvicorn==0.32.1
+pydantic==2.10.4
+python-multipart==0.0.20
+numpy==2.2.6
+scikit-learn==1.6.1
+joblib
+Pillow==11.0.0
+matplotlib==3.9.4
+reportlab==4.2.5
