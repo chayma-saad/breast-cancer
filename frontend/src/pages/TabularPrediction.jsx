@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { API_BASE } from '../config'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileSpreadsheet,
@@ -105,7 +106,7 @@ export default function TabularPrediction() {
     setError(null)
     
     try {
-      const response = await fetch('/api/predict/tabular', {
+      const response = await fetch(`${API_BASE}/predict/tabular`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -176,7 +177,7 @@ export default function TabularPrediction() {
     if (!result) return
     
     try {
-      const response = await fetch(`/api/report/generate?prediction_id=${result.prediction_id}`, {
+      const response = await fetch(`${API_BASE}/report/generate?prediction_id=${result.prediction_id}`, {
         method: 'POST'
       })
       
