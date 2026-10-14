@@ -24,6 +24,9 @@ import joblib
 
 USE_REAL_MODELS = True
 
+# Models trained on raw (unscaled) clinical features
+RAW_FEATURE_MODELS = {'Random Forest'}
+
 BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MODEL_PATHS = {
@@ -247,8 +250,13 @@ class TabularPredictor:
                         # Skip GRU-SVM if no extractor available
                         continue
                 else:
-                    # Scale and select correct number of features
-                    scaled_features = self.preprocess(features, n_features)
+                    # Scale and select correct number of features.
+                    # Random Forest was trained on raw (unscaled) features,
+                    # so it must receive them as-is (98.9% accuracy vs 68% when scaled).
+                    if model_name in RAW_FEATURE_MODELS:
+                        scaled_features = features[:, :n_features]
+                    else:
+                        scaled_features = self.preprocess(features, n_features)
                     
                     # Predict
                     pred = model.predict(scaled_features)[0]
