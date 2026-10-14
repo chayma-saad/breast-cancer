@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { API_BASE } from '../config'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Image as ImageIcon,
@@ -76,7 +77,7 @@ export default function ImagePrediction() {
       const formData = new FormData()
       formData.append('file', selectedImage)
       
-      const response = await fetch('/api/predict/image', {
+      const response = await fetch(`${API_BASE}/predict/image`, {
         method: 'POST',
         body: formData
       })
@@ -121,7 +122,7 @@ export default function ImagePrediction() {
     if (!result) return
     
     try {
-      const response = await fetch(`/api/report/generate?prediction_id=${result.prediction_id}`, {
+      const response = await fetch(`${API_BASE}/report/generate?prediction_id=${result.prediction_id}`, {
         method: 'POST'
       })
       
