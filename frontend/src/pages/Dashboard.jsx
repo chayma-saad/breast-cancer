@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { API_BASE } from '../config'
 import { motion } from 'framer-motion'
 import {
   BarChart3,
@@ -138,7 +139,7 @@ export default function Dashboard() {
 
   const fetchMetrics = async () => {
     try {
-      const response = await fetch('/api/metrics')
+      const response = await fetch(`${API_BASE}/metrics`)
       if (response.ok) {
         const data = await response.json()
         setMetrics(data)
