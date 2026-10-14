@@ -1,5 +1,12 @@
 # 🩺 AI-Powered Breast Cancer Diagnosis Platform
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-chayma--saad.github.io-ec4899?style=for-the-badge&logo=githubpages&logoColor=white)](https://chayma-saad.github.io/breast-cancer/)
+[![API](https://img.shields.io/badge/API-Render-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://breast-cancer-api-r8x7.onrender.com/docs)
+
+> 🌐 **Try it live:** https://chayma-saad.github.io/breast-cancer/
+> The backend runs on Render's free tier — the first prediction after a period of inactivity can take ~50 s while the server wakes up.
+
+
 A modern web application for breast cancer diagnosis using machine learning and deep learning models. The platform supports both tabular clinical data (Wisconsin Breast Cancer Dataset) and mammogram image analysis.
 
 ![Platform Preview](https://img.shields.io/badge/Status-Active-success)
